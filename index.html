@@ -1,0 +1,1345 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>個人動態記帳與記事管理工具</title>
+    <!-- 隱藏 Tailwind CDN 的開發用警告（需放在 Tailwind 載入之前） -->
+    <script>
+        (function () {
+            var rawWarn = console.warn;
+            console.warn = function () {
+                var first = arguments[0];
+                if (typeof first === 'string' && first.indexOf('cdn.tailwindcss.com should not be used in production') !== -1) return;
+                return rawWarn.apply(console, arguments);
+            };
+        })();
+    </script>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Sans TC', system-ui, -apple-system, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+        }
+
+        /* 自訂細滾動條 */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 3px;
+        }
+        /* 內建 SVG 圖示（取代 Font Awesome） */
+        .fa-solid{display:inline-block;width:1em;height:1em;vertical-align:-.125em;background-color:currentColor;-webkit-mask:var(--ic) center/contain no-repeat;mask:var(--ic) center/contain no-repeat;}
+        .fa-xmark{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M18 6 6 18M6 6l12 12'/%3E%3C/svg%3E");}
+        .fa-plus{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 5v14M5 12h14'/%3E%3C/svg%3E");}
+        .fa-trash{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6'/%3E%3C/svg%3E");}
+        .fa-pen{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'/%3E%3C/svg%3E");}
+        .fa-pen-to-square{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4Z'/%3E%3C/svg%3E");}
+        .fa-sliders{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6'/%3E%3C/svg%3E");}
+        .fa-palette{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22a10 10 0 1 1 10-10c0 3-2 4-4 4h-2a2 2 0 0 0-1 3.7c.6.8.4 2.3-3 2.3zM7.5 10.5h.01M12 7.5h.01M16.5 10.5h.01'/%3E%3C/svg%3E");}
+        .fa-calculator{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='4' y='2' width='16' height='20' rx='2'/%3E%3Cpath d='M8 6h8M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01'/%3E%3C/svg%3E");}
+        .fa-list-check{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M11 6h10M11 12h10M11 18h10M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17'/%3E%3C/svg%3E");}
+        .fa-wallet{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4'/%3E%3C/svg%3E");}
+        .fa-clock{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 6v6l4 2'/%3E%3C/svg%3E");}
+        .fa-arrow-down-left{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M17 7 7 17M17 17H7V7'/%3E%3C/svg%3E");}
+        .fa-arrow-up-right{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 17 17 7M7 7h10v10'/%3E%3C/svg%3E");}
+        .fa-piggy-bank{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2V5zM16 11h.01'/%3E%3C/svg%3E");}
+        .fa-circle-check{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E");}
+        .fa-circle-exclamation{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 8v4M12 16h.01'/%3E%3C/svg%3E");}
+        .fa-calendar-days{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cpath d='M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01'/%3E%3C/svg%3E");}
+        :root { box-sizing: border-box; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+        html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+
+        /* 手機版：輸入框 16px 避免 iOS 自動放大；標題縮小 */
+        @media (max-width: 767px) {
+            input, select, textarea { font-size: 16px !important; }
+            header h1 { font-size: 14px; }
+            header h1 span, header p { display: none; }
+        }
+
+
+        /* 記事清單：文字放大到 16px */
+        #tasksView, #tasksView table, #tasksView th, #tasksView td, #tasksView button,
+        #tasksView .text-xs, #tasksView .text-sm, #tasksView .text-\[11px\], #tasksView .text-\[10px\] { font-size: 16px !important; }
+
+        /* 自訂內容區塊底色 */
+        body.custom-panel .bg-slate-900\/80,
+        body.custom-panel .bg-slate-900\/60 { background-color: var(--panel-bg) !important; }
+        body.custom-panel thead.bg-slate-950 { background-color: color-mix(in srgb, var(--panel-bg) 88%, #000) !important; }
+        /* 淺色內容區塊：文字改深色 */
+        body.panel-light #appMainContainer .text-slate-100:not(button):not(input):not(select),
+        body.panel-light #appMainContainer .text-slate-200:not(button):not(input):not(select) { color: #1e293b !important; }
+        body.panel-light #appMainContainer .text-slate-300:not(button):not(input):not(select) { color: #334155 !important; }
+        body.panel-light #appMainContainer .text-slate-400:not(button):not(input):not(select),
+        body.panel-light #appMainContainer .text-slate-500:not(button):not(input):not(select) { color: #64748b !important; }
+        body.panel-light #appMainContainer .border-slate-800,
+        body.panel-light #appMainContainer .border-slate-800\/40 { border-color: #e2e8f0 !important; }
+        body.panel-light #appMainContainer tbody > tr { border-color: #e2e8f0 !important; }
+        body.panel-light #appMainContainer tbody tr:hover { background-color: rgba(15, 23, 42, .05) !important; }
+        body.panel-light #appMainContainer .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: #e2e8f0 !important; }
+        header.hdr-light h1 { color: #0f172a !important; }
+        header.hdr-light p { color: #475569 !important; }
+    </style>
+</head>
+<body class="min-h-[100dvh] md:h-screen flex flex-col md:overflow-hidden">
+
+    <!-- 頂部導覽列 -->
+    <header class="bg-slate-900 border-b border-slate-800 px-3 md:px-6 py-3 flex flex-wrap gap-2 justify-between items-center z-20 flex-shrink-0">
+        <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center font-bold text-white text-lg shadow-lg shadow-emerald-500/20">
+                <i class="fa-solid fa-wallet"></i>
+            </div>
+            <div>
+                <h1 class="text-base font-bold text-white leading-tight flex items-center gap-2">
+                    動態記帳與記事管理系統
+                    <span class="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-normal">v1.0 雙模組版</span>
+                </h1>
+                <p class="text-[11px] text-slate-400">靈活新增自訂欄位 • 月底一鍵結算 • 記事與進度追蹤</p>
+            </div>
+        </div>
+
+        <span id="syncBadge" class="text-[10px] px-2 py-1 rounded-full border border-slate-700 text-slate-400 whitespace-nowrap">讀取中…</span>
+
+        <!-- 頁籤切換按鈕 -->
+        <div class="flex items-center bg-slate-800 p-1 rounded-xl border border-slate-700/60">
+            <button id="btnTabAccounting" onclick="switchTab('accounting')" class="px-4 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-2 bg-emerald-500 text-white shadow">
+                <i class="fa-solid fa-calculator"></i> 記帳管理
+            </button>
+            <button id="btnTabTasks" onclick="switchTab('tasks')" class="px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 transition flex items-center gap-2">
+                <i class="fa-solid fa-list-check"></i> 記事清單
+            </button>
+            <button onclick="toggleThemeModal()" class="ml-2 px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-900 border border-slate-700 text-slate-300 hover:text-emerald-400 hover:border-emerald-500 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-palette text-emerald-400"></i> 主題配色
+            </button>
+        </div>
+    </header>
+
+    <!-- 主內容區 -->
+    <main id="appMainContainer" class="flex-1 md:overflow-hidden flex flex-col p-3 md:p-6 max-w-7xl w-full mx-auto space-y-3 md:space-y-4 min-h-0">
+        <!-- ==================== 1. 記帳頁面 ==================== -->
+        <section id="accountingView" class="flex-1 flex flex-col space-y-3 md:space-y-4 md:overflow-hidden min-h-0">
+            
+            <!-- 頂部控制與數據匯總卡片 -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 flex-shrink-0">
+                <div class="bg-slate-900/80 border border-slate-800 p-3.5 rounded-xl flex items-center justify-between">
+                    <div>
+                        <div class="text-[11px] text-slate-400 font-medium">當月總收入</div>
+                        <div id="statIncome" class="text-lg font-bold text-emerald-400 mt-0.5">NT$ 0</div>
+                    </div>
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+                        <i class="fa-solid fa-arrow-down-left text-sm"></i>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 border border-slate-800 p-3.5 rounded-xl flex items-center justify-between">
+                    <div>
+                        <div class="text-[11px] text-slate-400 font-medium">當月總支出</div>
+                        <div id="statExpense" class="text-lg font-bold text-rose-400 mt-0.5">NT$ 0</div>
+                    </div>
+                    <div class="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center">
+                        <i class="fa-solid fa-arrow-up-right text-sm"></i>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 border border-slate-800 p-3.5 rounded-xl flex items-center justify-between">
+                    <div>
+                        <div class="text-[11px] text-slate-400 font-medium">累計總時數</div>
+                        <div id="statHours" class="text-lg font-bold text-amber-400 mt-0.5">0 小時</div>
+                    </div>
+                    <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                        <i class="fa-solid fa-clock text-sm"></i>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 border border-slate-800 p-3.5 rounded-xl flex items-center justify-between">
+                    <div>
+                        <div class="text-[11px] text-slate-400 font-medium">當月結餘 (淨收入)</div>
+                        <div id="statBalance" class="text-lg font-bold text-cyan-400 mt-0.5">NT$ 0</div>
+                    </div>
+                    <div class="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+                        <i class="fa-solid fa-piggy-bank text-sm"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 操作工具列 -->
+            <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-xl flex flex-wrap justify-between items-center gap-3 flex-shrink-0">
+                <div class="flex items-center space-x-2">
+                    <button onclick="openAddRecordModal('accounting')" class="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-plus text-xs"></i> 新增記帳資料
+                    </button>
+                    <button onclick="openCustomFieldModal('accounting')" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-sliders text-xs text-emerald-400"></i> 管理記帳欄位
+                    </button>
+                </div>
+
+                <div class="flex items-center space-x-3">
+                    <div class="flex items-center space-x-1.5">
+                        <label class="text-xs text-slate-400">月份過濾：</label>
+                        <div class="relative"><input type="text" id="filterMonth" readonly placeholder="全部月份" onclick="openMonthPicker(this)" class="w-28 text-center cursor-pointer bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-slate-200 focus:outline-none focus:border-emerald-500"></div>
+                    </div>
+                    <button onclick="calculateMonthlySummary()" class="px-4 py-1.5 bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-600 hover:to-emerald-600 text-white text-xs font-bold rounded-lg shadow-md shadow-emerald-500/20 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-calculator text-xs"></i> 月底一鍵結算
+                    </button>
+                </div>
+            </div>
+
+            <!-- 記帳資料表格 -->
+            <div class="flex-1 min-h-[340px] md:min-h-0 bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+                <div class="overflow-x-auto overflow-y-auto flex-1">
+                    <table class="w-full min-w-[620px] md:min-w-0 text-left border-collapse text-xs">
+                        <thead class="bg-slate-950 text-slate-400 sticky top-0 z-10 border-b border-slate-800">
+                            <tr id="accountingTableHeader">
+                                <!-- 動態渲染 Header -->
+                            </tr>
+                        </thead>
+                        <tbody id="accountingTableBody" class="divide-y divide-slate-800/60 text-slate-200">
+                            <!-- 動態渲染資料列 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== 2. 記事/代辦頁面 ==================== -->
+        <section id="tasksView" class="flex-1 flex flex-col space-y-4 overflow-hidden hidden">
+            
+            <!-- 操作工具列 -->
+            <div class="bg-slate-900/60 border border-slate-800 p-3 rounded-xl flex flex-wrap justify-between items-center gap-3 flex-shrink-0">
+                <div class="flex items-center space-x-2">
+                    <button onclick="openAddRecordModal('tasks')" class="px-3.5 py-1.5 bg-cyan-500 hover:bg-cyan-600 text-white text-xs font-semibold rounded-lg shadow transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-plus text-xs"></i> 新增記事項目
+                    </button>
+                    <button onclick="openCustomFieldModal('tasks')" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold rounded-lg transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-sliders text-xs text-cyan-400"></i> 管理記事欄位
+                    </button>
+                </div>
+
+                <div class="flex items-center space-x-3 text-xs text-slate-400">
+                    <span id="taskStatsBadge" class="bg-slate-800 border border-slate-700 px-3 py-1 rounded-lg text-cyan-300">
+                        完成進度：0 / 0 (0%)
+                    </span>
+                </div>
+            </div>
+
+            <!-- 記事資料表格 -->
+            <div class="flex-1 min-h-[340px] md:min-h-0 bg-slate-900/60 border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+                <div class="overflow-x-auto overflow-y-auto flex-1">
+                    <table class="w-full min-w-[620px] md:min-w-0 text-left border-collapse text-xs">
+                        <thead class="bg-slate-950 text-slate-400 sticky top-0 z-10 border-b border-slate-800">
+                            <tr id="tasksTableHeader">
+                                <!-- 動態渲染 Header -->
+                            </tr>
+                        </thead>
+                        <tbody id="tasksTableBody" class="divide-y divide-slate-800/60 text-slate-200">
+                            <!-- 動態渲染資料列 -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Modal 1: 新增 / 編輯資料 Modal -->
+    <div id="recordModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3 flex-shrink-0">
+                <h3 id="recordModalTitle" class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-emerald-400"></i> 新增紀錄
+                </h3>
+                <button onclick="closeModal('recordModal')" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form id="recordForm" onsubmit="handleRecordSubmit(event)" class="space-y-3 flex-1 overflow-y-auto pr-1">
+                <div id="recordFormFields" class="space-y-3">
+                    <!-- 動態由 JavaScript 生成欄位輸入框 -->
+                </div>
+
+                <div class="pt-3 border-t border-slate-800 flex justify-end space-x-2">
+                    <button type="button" onclick="closeModal('recordModal')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl font-medium transition">
+                        取消
+                    </button>
+                    <button type="submit" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-xl font-bold transition shadow">
+                        儲存資料
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 2: 欄位管理 Modal -->
+    <div id="fieldModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3 flex-shrink-0">
+                <h3 id="fieldModalTitle" class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-emerald-400"></i> 管理欄位結構
+                </h3>
+                <button onclick="closeModal('fieldModal')" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- 已有欄位清單 -->
+            <div class="flex-1 overflow-y-auto space-y-2 pr-1">
+                <div class="text-[11px] font-semibold text-slate-400 mb-1">現有欄位清單：</div>
+                <div id="fieldListContainer" class="space-y-2">
+                    <!-- 動態渲染欄位清單 -->
+                </div>
+            </div>
+
+            <!-- 新增欄位表單 -->
+            <div class="border-t border-slate-800 pt-3 space-y-2.5 flex-shrink-0">
+                <div class="text-[11px] font-semibold text-emerald-400">＋ 新增自訂欄位</div>
+                <div class="space-y-2">
+                    <input type="text" id="newFieldName" placeholder="欄位名稱 (例如: 備註, 類別...)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500">
+                    <select id="newFieldType" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500">
+                        <option value="text">單行文字</option>
+                        <option value="number">數字</option>
+                        <option value="date">日期</option>
+                        <option value="select">下拉選單（新增後可修改選項）</option>
+                        <option value="checkbox">勾選框 (完成狀態)</option>
+                    </select>
+                </div>
+                <button onclick="addNewCustomField()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-emerald-300 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-plus text-xs"></i> 新增欄位
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 3: 外觀與顏色設定 Modal -->
+    <div id="themeModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-palette text-emerald-400"></i> 外觀與背景色彩調整
+                </h3>
+                <button onclick="closeModal('themeModal')" class="text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- 色彩控制器：改為可直接輸入 HEX 色碼並與選色盤同步 -->
+            <div class="space-y-3 text-xs">
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">主畫面背景色 (HEX)</label>
+                    <div class="flex items-center gap-2 bg-slate-950 border border-slate-700 rounded-xl p-1.5">
+                        <input type="color" id="pickerMainBg" value="#0f172a" oninput="syncColorInput('mainBg', this.value)" class="w-7 h-7 bg-transparent cursor-pointer rounded border-0 p-0">
+                        <input type="text" id="inputMainBgHex" value="#0f172a" oninput="updateCustomColorsFromHex('mainBg', this.value)" class="w-full bg-transparent text-slate-100 font-mono text-xs focus:outline-none uppercase" maxlength="7">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">頁首導覽列背景色 (HEX)</label>
+                    <div class="flex items-center gap-2 bg-slate-950 border border-slate-700 rounded-xl p-1.5">
+                        <input type="color" id="pickerHeaderBg" value="#0f172a" oninput="syncColorInput('headerBg', this.value)" class="w-7 h-7 bg-transparent cursor-pointer rounded border-0 p-0">
+                        <input type="text" id="inputHeaderBgHex" value="#0f172a" oninput="updateCustomColorsFromHex('headerBg', this.value)" class="w-full bg-transparent text-slate-100 font-mono text-xs focus:outline-none uppercase" maxlength="7">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">內容區塊背景色（統計卡片、工具列、表格）(HEX)</label>
+                    <div class="flex items-center gap-2 bg-slate-950 border border-slate-700 rounded-xl p-1.5">
+                        <input type="color" id="pickerPanelBg" value="#111a2e" oninput="syncColorInput('panelBg', this.value)" class="w-7 h-7 bg-transparent cursor-pointer rounded border-0 p-0">
+                        <input type="text" id="inputPanelBgHex" value="#111a2e" oninput="updateCustomColorsFromHex('panelBg', this.value)" class="w-full bg-transparent text-slate-100 font-mono text-xs focus:outline-none uppercase" maxlength="7">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-slate-400 mb-1 font-medium">快速預設風格主題</label>
+                    <div class="grid grid-cols-2 gap-2 pt-1">
+                        <button onclick="applyPresetTheme('dark')" class="p-2 rounded-xl border border-slate-700 bg-slate-900 text-slate-200 text-xs hover:border-emerald-500 transition text-left">
+                            <div class="font-semibold">暗黑酷炫 (Dark)</div>
+                            <div class="text-[10px] text-slate-500">預設深色質感</div>
+                        </button>
+                        <button onclick="applyPresetTheme('slate')" class="p-2 rounded-xl border border-slate-700 bg-slate-800 text-slate-200 text-xs hover:border-emerald-500 transition text-left">
+                            <div class="font-semibold">石墨灰調 (Slate)</div>
+                            <div class="text-[10px] text-slate-400">沉穩專業風格</div>
+                        </button>
+                        <button onclick="applyPresetTheme('light')" class="p-2 rounded-xl border border-slate-300 bg-slate-100 text-slate-800 text-xs hover:border-emerald-500 transition text-left">
+                            <div class="font-semibold">明亮清爽 (Light)</div>
+                            <div class="text-[10px] text-slate-600">清晰高對比</div>
+                        </button>
+                        <button onclick="applyPresetTheme('warm')" class="p-2 rounded-xl border border-stone-300 bg-stone-100 text-stone-800 text-xs hover:border-emerald-500 transition text-left">
+                            <div class="font-semibold">暖沙奶油 (Warm)</div>
+                            <div class="text-[10px] text-stone-600">柔和溫暖舒適</div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-slate-800 flex justify-between items-center">
+                <button onclick="resetThemeColors()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs rounded-xl font-medium transition">
+                    恢復預設配色
+                </button>
+                <button onclick="closeModal('themeModal')" class="px-4 py-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-xl font-bold transition shadow">
+                    完成關閉
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 確認視窗（取代瀏覽器 confirm） -->
+    <div id="confirmModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+            <div class="flex items-start gap-3">
+                <div class="w-8 h-8 rounded-lg bg-rose-500/10 text-rose-400 flex items-center justify-center flex-shrink-0"><i class="fa-solid fa-trash text-sm"></i></div>
+                <div id="confirmMsg" class="text-sm text-slate-200 leading-relaxed pt-1"></div>
+            </div>
+            <div class="flex justify-end space-x-2">
+                <button type="button" id="confirmCancel" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl font-medium transition">取消</button>
+                <button type="button" id="confirmOk" class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white text-xs rounded-xl font-bold transition shadow">確定刪除</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提示通知彈窗 -->
+    <div id="toast" class="fixed bottom-5 right-5 bg-slate-900 border border-slate-700 text-white px-4 py-2.5 rounded-xl shadow-xl text-xs flex items-center space-x-2 opacity-0 pointer-events-none transition-all z-50">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-sm"></i>
+        <span id="toastMsg">操作成功</span>
+    </div>
+
+    <script>
+        // 資料狀態（初始化或從 localStorage 讀取）
+        let activeTab = 'accounting'; // 'accounting' | 'tasks'
+        let editingRecordId = null;
+        let currentFieldTargetModule = 'accounting';
+
+        // 預設欄位定義
+        let schema = {
+            accounting: [
+                { id: 'date', name: '日期', type: 'date', isSystem: true },
+                { id: 'type', name: '收支類別', type: 'select', options: ['收入', '支出'], isSystem: true },
+                { id: 'amount', name: '金額 (NT$)', type: 'number', isSystem: true },
+                { id: 'hours', name: '時數 (小時)', type: 'number', isSystem: true },
+                { id: 'note', name: '備註/說明', type: 'text', isSystem: false }
+            ],
+            tasks: [
+                { id: 'date', name: '日期', type: 'date', isSystem: true },
+                { id: 'item', name: '項目/事項描述', type: 'text', isSystem: true },
+                { id: 'completed', name: '是否已完成', type: 'checkbox', isSystem: true },
+                { id: 'category', name: '分類/標籤', type: 'select', options: ['行政請款', '客戶對接', '開發維運', '其他'], isSystem: false }
+            ]
+        };
+
+        // 資料列存儲
+        let dataStore = { accounting: [], tasks: [] };
+
+        // ================= 儲存 / 讀取（本機 + 雲端同步） =================
+        const STORE_KEY = 'bondlink_ledger_v1';
+        const cloud = { ref: null, lastJson: '', timer: null, writing: false, pending: false, readOnly: false };
+
+        function currentJson() {
+            return JSON.stringify({ schema, dataStore });
+        }
+
+        function setSync(state) {
+            const el = document.getElementById('syncBadge');
+            if (!el) return;
+            const map = {
+                cloud:  ['☁ 已同步（所有人共用同一份帳本）', 'border-emerald-500/40 text-emerald-300'],
+                readonly: ['唯讀：需「貢獻者」權限才能編輯', 'border-amber-500/40 text-amber-300'],
+                saving: ['同步中…', 'border-amber-500/40 text-amber-300'],
+                local:  ['僅存本機（登入 Claude 後開啟才能跨裝置同步）', 'border-slate-700 text-slate-400'],
+                error:  ['雲端同步失敗，已先存本機', 'border-rose-500/40 text-rose-300']
+            };
+            const m = map[state] || map.local;
+            el.textContent = m[0];
+            el.className = 'text-[10px] px-2 py-1 rounded-full border whitespace-nowrap ' + m[1];
+        }
+
+        // 把存檔內容套用到目前狀態（含舊版資料遷移）
+        function applyState(saved) {
+            if (saved.schema && saved.schema.accounting && saved.schema.tasks) schema = saved.schema;
+            if (saved.dataStore && saved.dataStore.accounting && saved.dataStore.tasks) dataStore = saved.dataStore;
+            const cat = schema.tasks.find(f => f.id === 'category');
+            if (cat && cat.type === 'text') {
+                const used = [...new Set(dataStore.tasks.map(t => (t.category || '').trim()).filter(Boolean))];
+                cat.type = 'select';
+                cat.options = [...new Set([...used, '行政請款', '客戶對接', '開發維運', '其他'])];
+            }
+        }
+
+        function saveToLocalStorage() {
+            try { localStorage.setItem(STORE_KEY, currentJson()); } catch (e) {}
+            if (cloud.ref && !cloud.readOnly) {
+                clearTimeout(cloud.timer);
+                cloud.timer = setTimeout(pushToCloud, 500);
+            }
+        }
+
+        function loadFromLocalStorage() {
+            try {
+                const raw = localStorage.getItem(STORE_KEY);
+                if (raw) applyState(JSON.parse(raw));
+            } catch (e) {}
+        }
+
+        async function pushToCloud() {
+            if (!cloud.ref) return;
+            if (cloud.writing) { cloud.pending = true; return; }
+            const json = currentJson();
+            if (json === cloud.lastJson) { setSync('cloud'); return; }
+            cloud.writing = true;
+            setSync('saving');
+            try {
+                await cloud.ref.set({ json, updatedAt: Date.now() });
+                cloud.lastJson = json;
+                setSync('cloud');
+            } catch (e) {
+                setSync('error');
+            } finally {
+                cloud.writing = false;
+                if (cloud.pending) { cloud.pending = false; pushToCloud(); }
+            }
+        }
+
+        // 唯讀（沒有編輯權限）時，擋住所有修改動作
+        function guardWrite() {
+            if (!cloud.readOnly) return true;
+            showToast('你目前是唯讀權限，無法修改。請向擁有者索取「貢獻者」權限', 'circle-exclamation');
+            return false;
+        }
+
+        function renderAll() {
+            renderAccountingTable();
+            renderTasksTable();
+            if (!document.getElementById('fieldModal').classList.contains('hidden')) renderFieldList();
+        }
+
+        // 連接雲端：資料存在你自己的 Claude 帳號下，同一帳號的手機與電腦共用
+        async function initCloud() {
+            try {
+                if (!window.claude || !claude.use) { setSync('local'); return; }
+                const [user, db] = await Promise.all([claude.use('user'), claude.use('db')]);
+                if (!user || !db) { setSync('local'); return; }
+                const id = await user.id();
+                if (!id) { setSync('local'); return; }
+                const ref = db.doc('ledger/main'); // 所有人共用同一份帳本
+                const canWrite = await user.can('data.write');
+                const isOwner = user.isOwner();
+                if (canWrite === false) cloud.readOnly = true;
+
+                let snap = await ref.get();
+                let migrated = false;
+                if (!snap.exists && isOwner) {
+                    // 第一次啟用共用：把先前存在個人空間的資料搬過來
+                    try {
+                        const old = await db.doc('data/users/' + id + '/ledger').get();
+                        if (old.exists && old.data() && old.data().json) { snap = old; migrated = true; }
+                    } catch (e) {}
+                }
+                if (snap.exists && snap.data() && snap.data().json) {
+                    const json = snap.data().json;
+                    applyState(JSON.parse(json));
+                    cloud.lastJson = migrated ? '' : json;
+                    try { localStorage.setItem(STORE_KEY, currentJson()); } catch (e) {}
+                    renderAll();
+                }
+                cloud.ref = ref;
+                if (cloud.readOnly) {
+                    setSync('readonly');
+                } else if (isOwner || snap.exists) {
+                    setSync('saving');
+                    await pushToCloud(); // 共用帳本還不存在時建立；已相同則不重複寫入
+                } else {
+                    setSync('cloud');
+                }
+
+                ref.onSnapshot(s => {
+                    if (!s.exists || !s.data() || !s.data().json) return;
+                    const j = s.data().json;
+                    if (j === cloud.lastJson || j === currentJson()) return;
+                    try {
+                        applyState(JSON.parse(j));
+                        cloud.lastJson = j;
+                        try { localStorage.setItem(STORE_KEY, currentJson()); } catch (e) {}
+                        renderAll();
+                        showToast('已從其他裝置更新資料');
+                    } catch (e) {}
+                }, () => setSync('error'));
+            } catch (e) {
+                setSync('local');
+            }
+        }
+
+        function esc(v) {
+            return String(v === undefined || v === null ? '' : v)
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+
+        // 頁面初始化
+        window.onload = function() {
+            const now = new Date();
+            document.getElementById('filterMonth').value =
+                `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+            loadFromLocalStorage();
+            loadSavedTheme();
+            renderAccountingTable();
+            renderTasksTable();
+            initCloud();
+        };
+
+        // 自訂顏色與主題邏輯 (支援直接輸入 HEX 色碼與選色器雙向連動)
+        function toggleThemeModal() {
+            document.getElementById('themeModal').classList.toggle('hidden');
+        }
+
+        const THEME_FIELDS = {
+            mainBg:   { picker: 'pickerMainBg',   input: 'inputMainBgHex' },
+            headerBg: { picker: 'pickerHeaderBg', input: 'inputHeaderBgHex' },
+            panelBg:  { picker: 'pickerPanelBg',  input: 'inputPanelBgHex' }
+        };
+        let panelCustom = false; // 是否使用自訂的內容區塊底色（否則維持預設半透明深色）
+
+        function isValidHex(v) { return /^#[0-9A-Fa-f]{6}$/.test(v); }
+
+        function luminance(hex) {
+            const r = parseInt(hex.substr(1, 2), 16), g = parseInt(hex.substr(3, 2), 16), b = parseInt(hex.substr(5, 2), 16);
+            return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        }
+
+        // 直接由 HEX 輸入框更新顏色
+        function updateCustomColorsFromHex(type, hexVal) {
+            let clean = hexVal.trim();
+            if (!clean.startsWith('#')) clean = '#' + clean;
+            if (isValidHex(clean)) {
+                document.getElementById(THEME_FIELDS[type].picker).value = clean;
+                applyColorToDOM(type, clean);
+            }
+        }
+
+        // 從選色器同步文字輸入框
+        function syncColorInput(type, hexVal) {
+            document.getElementById(THEME_FIELDS[type].input).value = hexVal;
+            applyColorToDOM(type, hexVal);
+        }
+
+        // 套用色彩至畫面並儲存
+        function applyColorToDOM(type, colorHex) {
+            if (type === 'mainBg') document.body.style.backgroundColor = colorHex;
+            else if (type === 'headerBg') document.querySelector('header').style.backgroundColor = colorHex;
+            else if (type === 'panelBg') { panelCustom = true; applyPanelColor(colorHex); }
+            updateHeaderContrast();
+            saveTheme();
+        }
+
+        // 內容區塊（統計卡片、工具列、表格）底色
+        function applyPanelColor(hex) {
+            if (!panelCustom) {
+                document.body.classList.remove('custom-panel', 'panel-light');
+                return;
+            }
+            document.documentElement.style.setProperty('--panel-bg', hex);
+            document.body.classList.add('custom-panel');
+            document.body.classList.toggle('panel-light', luminance(hex) > 0.6);
+        }
+
+        function saveTheme() {
+            try {
+                localStorage.setItem('app_theme_custom', JSON.stringify({
+                    mainBg: document.getElementById('pickerMainBg').value,
+                    headerBg: document.getElementById('pickerHeaderBg').value,
+                    panelBg: panelCustom ? document.getElementById('pickerPanelBg').value : null
+                }));
+            } catch (e) {}
+        }
+
+        // 頁首背景偏亮時，改用深色文字
+        function updateHeaderContrast() {
+            const hex = document.getElementById('pickerHeaderBg').value || '#0f172a';
+            document.querySelector('header').classList.toggle('hdr-light', luminance(hex) > 0.6);
+        }
+
+        function setThemeColors(mainBg, headerBg, panelBg) {
+            document.body.style.backgroundColor = mainBg;
+            document.querySelector('header').style.backgroundColor = headerBg;
+            panelCustom = !!panelBg;
+            const shownPanel = panelBg || '#111a2e';
+            applyPanelColor(shownPanel);
+            const vals = { mainBg, headerBg, panelBg: shownPanel };
+            Object.keys(THEME_FIELDS).forEach(k => {
+                document.getElementById(THEME_FIELDS[k].picker).value = vals[k];
+                document.getElementById(THEME_FIELDS[k].input).value = vals[k];
+            });
+            updateHeaderContrast();
+        }
+
+        function applyPresetTheme(theme) {
+            const presets = {
+                dark:  ['#0f172a', '#0f172a', null],
+                slate: ['#1e293b', '#0f172a', '#334155'],
+                light: ['#f1f5f9', '#ffffff', '#ffffff'],
+                warm:  ['#f5f5f4', '#e7e5e4', '#fafaf9']
+            };
+            const c = presets[theme] || presets.dark;
+            setThemeColors(c[0], c[1], c[2]);
+            saveTheme();
+            showToast('已切換主題風格！');
+        }
+
+        function resetThemeColors() {
+            applyPresetTheme('dark');
+        }
+
+        function loadSavedTheme() {
+            let saved = null;
+            try { saved = localStorage.getItem('app_theme_custom'); } catch (e) {}
+            if (!saved) return;
+            let c = {};
+            try { c = JSON.parse(saved) || {}; } catch (e) {}
+            setThemeColors(
+                isValidHex(c.mainBg || '') ? c.mainBg : '#0f172a',
+                isValidHex(c.headerBg || '') ? c.headerBg : '#0f172a',
+                isValidHex(c.panelBg || '') ? c.panelBg : null
+            );
+        }
+
+        function rgbToHex(col) {
+            if (col.startsWith('#')) return col;
+            return '#0f172a'; // fallback
+        }
+
+        // 頁籤切換邏輯
+        function switchTab(tab) {
+            activeTab = tab;
+            const btnAcc = document.getElementById('btnTabAccounting');
+            const btnTask = document.getElementById('btnTabTasks');
+            const viewAcc = document.getElementById('accountingView');
+            const viewTask = document.getElementById('tasksView');
+
+            if (tab === 'accounting') {
+                btnAcc.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-2 bg-emerald-500 text-white shadow';
+                btnTask.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 transition flex items-center gap-2';
+                viewAcc.classList.remove('hidden');
+                viewTask.classList.add('hidden');
+                renderAccountingTable();
+            } else {
+                btnTask.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-2 bg-cyan-500 text-white shadow';
+                btnAcc.className = 'px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 transition flex items-center gap-2';
+                viewTask.classList.remove('hidden');
+                viewAcc.classList.add('hidden');
+                renderTasksTable();
+            }
+        }
+
+        // ================= 記帳頁面 logic =================
+        function renderAccountingTable() {
+            const headerRow = document.getElementById('accountingTableHeader');
+            const body = document.getElementById('accountingTableBody');
+            const fields = schema.accounting;
+            const selectedMonth = document.getElementById('filterMonth').value;
+
+            // 1. 渲染 Header
+            let headerHTML = '';
+            fields.forEach(f => {
+                headerHTML += `<th class="px-4 py-3 font-semibold">${esc(f.name)}</th>`;
+            });
+            headerHTML += `<th class="px-4 py-3 font-semibold text-right">操作</th>`;
+            headerRow.innerHTML = headerHTML;
+
+            // 2. 過濾與渲染 Body
+            const records = dataStore.accounting.filter(item => {
+                if (!selectedMonth || !item.date) return true;
+                return item.date.startsWith(selectedMonth);
+            });
+
+            if (records.length === 0) {
+                body.innerHTML = `<tr><td colspan="${fields.length + 1}" class="px-4 py-8 text-center text-slate-500">尚無資料，點擊上方「新增記帳資料」來加入第一筆紀錄</td></tr>`;
+                updateAccountingStats();
+                return;
+            }
+
+            let bodyHTML = '';
+            records.forEach(row => {
+                bodyHTML += `<tr class="hover:bg-slate-800/40 transition border-b border-slate-800/40">`;
+                fields.forEach(f => {
+                    let val = row[f.id] !== undefined ? row[f.id] : '';
+                    if (f.id === 'type') {
+                        const badgeColor = val === '收入' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+                        bodyHTML += `<td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold border ${badgeColor}">${esc(val)}</span></td>`;
+                    } else if (f.id === 'amount') {
+                        bodyHTML += `<td class="px-4 py-3 font-mono font-semibold ${row.type === '收入' ? 'text-emerald-400' : 'text-slate-200'}">NT$ ${Number(val || 0).toLocaleString()}</td>`;
+                    } else if (f.id === 'hours') {
+                        bodyHTML += `<td class="px-4 py-3 font-mono text-amber-400">${val || 0} hr</td>`;
+                    } else {
+                        bodyHTML += `<td class="px-4 py-3">${esc(val)}</td>`;
+                    }
+                });
+                bodyHTML += `
+                    <td class="px-4 py-3 text-right space-x-1">
+                        <button onclick="editRecord('accounting', '${row.id}')" class="p-2 text-slate-400 hover:text-emerald-400 transition"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteRecord('accounting', '${row.id}')" class="p-2 text-slate-400 hover:text-rose-400 transition"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+
+            body.innerHTML = bodyHTML;
+            updateAccountingStats();
+        }
+
+        // 月底一鍵結算與統計數據計算
+        function calculateMonthlySummary() {
+            updateAccountingStats();
+            const selectedMonth = document.getElementById('filterMonth').value || '目前月份';
+            const balanceText = document.getElementById('statBalance').innerText;
+            showToast(`已完成【${selectedMonth}】月底結算！當月淨結餘為 ${balanceText}`);
+        }
+
+        function updateAccountingStats() {
+            const selectedMonth = document.getElementById('filterMonth').value;
+            const records = dataStore.accounting.filter(item => {
+                if (!selectedMonth || !item.date) return true;
+                return item.date.startsWith(selectedMonth);
+            });
+
+            let income = 0;
+            let expense = 0;
+            let hours = 0;
+
+            records.forEach(r => {
+                const amt = parseFloat(r.amount) || 0;
+                const hrs = parseFloat(r.hours) || 0;
+                if (r.type === '收入') income += amt;
+                else if (r.type === '支出') expense += amt;
+                hours += hrs;
+            });
+
+            const balance = income - expense;
+
+            document.getElementById('statIncome').innerText = `NT$ ${income.toLocaleString()}`;
+            document.getElementById('statExpense').innerText = `NT$ ${expense.toLocaleString()}`;
+            document.getElementById('statHours').innerText = `${hours} 小時`;
+            
+            const balEl = document.getElementById('statBalance');
+            balEl.innerText = `NT$ ${balance.toLocaleString()}`;
+            balEl.className = `text-lg font-bold ${balance >= 0 ? 'text-cyan-400' : 'text-rose-400'} mt-0.5`;
+        }
+
+        // ================= 記事頁面 logic =================
+        function renderTasksTable() {
+            const headerRow = document.getElementById('tasksTableHeader');
+            const body = document.getElementById('tasksTableBody');
+            const fields = schema.tasks;
+
+            // 1. 渲染 Header
+            let headerHTML = '';
+            fields.forEach(f => {
+                headerHTML += `<th class="px-4 py-3 font-semibold">${esc(f.name)}</th>`;
+            });
+            headerHTML += `<th class="px-4 py-3 font-semibold text-right">操作</th>`;
+            headerRow.innerHTML = headerHTML;
+
+            // 2. 渲染 Body
+            const records = dataStore.tasks;
+
+            if (records.length === 0) {
+                body.innerHTML = `<tr><td colspan="${fields.length + 1}" class="px-4 py-8 text-center text-slate-500">尚無記事項目，點擊上方「新增記事項目」建立新事項</td></tr>`;
+                updateTaskStats();
+                return;
+            }
+
+            let bodyHTML = '';
+            records.forEach(row => {
+                const isDone = !!row.completed;
+                bodyHTML += `<tr class="hover:bg-slate-800/40 transition border-b border-slate-800/40 ${isDone ? 'bg-slate-900/30 text-slate-500 line-through' : ''}">`;
+                
+                fields.forEach(f => {
+                    let val = row[f.id] !== undefined ? row[f.id] : '';
+                    if (f.id === 'completed') {
+                        bodyHTML += `
+                            <td class="px-4 py-3">
+                                <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleTaskDone('${row.id}')" class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-cyan-500 focus:ring-0 cursor-pointer">
+                            </td>`;
+                    } else if (f.id === 'item') {
+                        bodyHTML += `<td class="px-4 py-3 font-medium ${isDone ? 'text-slate-500' : 'text-slate-100'}">${esc(val)}</td>`;
+                    } else {
+                        bodyHTML += `<td class="px-4 py-3">${esc(val)}</td>`;
+                    }
+                });
+
+                bodyHTML += `
+                    <td class="px-4 py-3 text-right space-x-1 no-underline">
+                        <button onclick="editRecord('tasks', '${row.id}')" class="p-2 text-slate-400 hover:text-cyan-400 transition"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteRecord('tasks', '${row.id}')" class="p-2 text-slate-400 hover:text-rose-400 transition"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+
+            body.innerHTML = bodyHTML;
+            updateTaskStats();
+        }
+
+        function toggleTaskDone(id) {
+            if (!guardWrite()) { renderTasksTable(); return; }
+            const task = dataStore.tasks.find(t => t.id === id);
+            if (task) {
+                task.completed = !task.completed;
+                saveToLocalStorage();
+                renderTasksTable();
+            }
+        }
+
+        function updateTaskStats() {
+            const total = dataStore.tasks.length;
+            const completed = dataStore.tasks.filter(t => t.completed).length;
+            const pct = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+            document.getElementById('taskStatsBadge').innerText = `完成進度：${completed} / ${total} (${pct}%)`;
+        }
+
+        // ================= 日期輸入輔助 =================
+        function normalizeDate(str) {
+            const t = String(str || '').trim();
+            if (!t) return '';
+            const m = /^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/.exec(t);
+            if (!m) return null;
+            const y = +m[1], mo = +m[2], d = +m[3];
+            const dt = new Date(y, mo - 1, d);
+            if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) return null;
+            return `${m[1]}-${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        }
+
+        // 自製日曆（不依賴瀏覽器原生日期選擇器，任何環境都能點選）
+        function openDatePicker(btn, force) {
+            const wrap = btn.parentElement;
+            const existing = wrap.querySelector('.cal-pop');
+            document.querySelectorAll('.cal-pop').forEach(el => el.remove());
+            if (existing && !force) return;
+
+            const input = wrap.querySelector('input[type="text"]');
+            const norm = normalizeDate(input.value);
+            const base = norm ? new Date(norm + 'T00:00:00') : new Date();
+            let vy = base.getFullYear(), vm = base.getMonth();
+
+            const pop = document.createElement('div');
+            pop.className = 'cal-pop absolute right-0 top-full mt-1 z-50 w-64 bg-slate-900 border border-slate-700 rounded-xl p-3 shadow-2xl';
+
+            function ymd(y, m, d) {
+                return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            }
+
+            function draw() {
+                const sel = normalizeDate(input.value);
+                const now = new Date();
+                const todayStr = ymd(now.getFullYear(), now.getMonth(), now.getDate());
+                const firstDay = new Date(vy, vm, 1).getDay();
+                const days = new Date(vy, vm + 1, 0).getDate();
+                let h = `<div class="flex items-center justify-between mb-2">
+                    <button type="button" data-nav="-12" class="px-1.5 py-0.5 text-slate-400 hover:text-emerald-400 text-xs" title="上一年">«</button>
+                    <button type="button" data-nav="-1" class="px-2 py-0.5 text-slate-300 hover:text-emerald-400 text-sm" title="上個月">‹</button>
+                    <div class="text-xs font-bold text-slate-100">${vy} 年 ${vm + 1} 月</div>
+                    <button type="button" data-nav="1" class="px-2 py-0.5 text-slate-300 hover:text-emerald-400 text-sm" title="下個月">›</button>
+                    <button type="button" data-nav="12" class="px-1.5 py-0.5 text-slate-400 hover:text-emerald-400 text-xs" title="下一年">»</button>
+                </div>
+                <div class="grid grid-cols-7 gap-1 text-center text-[11px]">`;
+                ['日', '一', '二', '三', '四', '五', '六'].forEach(w => {
+                    h += `<div class="text-slate-500 py-1">${w}</div>`;
+                });
+                for (let i = 0; i < firstDay; i++) h += '<div></div>';
+                for (let d = 1; d <= days; d++) {
+                    const str = ymd(vy, vm, d);
+                    let cls = 'py-1.5 rounded-lg text-slate-200 hover:bg-slate-700 transition';
+                    if (str === todayStr) cls += ' border border-emerald-500/60';
+                    if (str === sel) cls = 'py-1.5 rounded-lg bg-emerald-500 text-white font-bold';
+                    h += `<button type="button" data-day="${str}" class="${cls}">${d}</button>`;
+                }
+                h += `</div>
+                <div class="flex justify-between mt-2 pt-2 border-t border-slate-800 text-[11px]">
+                    <button type="button" data-act="today" class="text-emerald-400 hover:text-emerald-300">今天</button>
+                    <button type="button" data-act="clear" class="text-slate-400 hover:text-rose-400">清除</button>
+                </div>`;
+                pop.innerHTML = h;
+            }
+
+            pop.addEventListener('click', e => {
+                e.stopPropagation();
+                const t = e.target.closest('button');
+                if (!t) return;
+                if (t.dataset.nav) {
+                    const total = vy * 12 + vm + parseInt(t.dataset.nav, 10);
+                    vy = Math.floor(total / 12);
+                    vm = total % 12;
+                    draw();
+                } else if (t.dataset.day) {
+                    input.value = t.dataset.day;
+                    pop.remove();
+                } else if (t.dataset.act === 'today') {
+                    const n = new Date();
+                    input.value = ymd(n.getFullYear(), n.getMonth(), n.getDate());
+                    pop.remove();
+                } else if (t.dataset.act === 'clear') {
+                    input.value = '';
+                    pop.remove();
+                }
+            });
+
+            draw();
+            wrap.appendChild(pop);
+        }
+
+        // 自製月份選擇器（整個欄位都可點擊）
+        function openMonthPicker(input) {
+            const wrap = input.parentElement;
+            const existing = wrap.querySelector('.cal-pop');
+            document.querySelectorAll('.cal-pop').forEach(el => el.remove());
+            if (existing) return;
+
+            const now = new Date();
+            const cur = /^(\d{4})-(\d{2})$/.exec(input.value);
+            let vy = cur ? +cur[1] : now.getFullYear();
+            const selY = cur ? +cur[1] : null, selM = cur ? +cur[2] : null;
+
+            const pop = document.createElement('div');
+            pop.className = 'cal-pop absolute right-0 top-full mt-1 z-50 w-56 bg-slate-900 border border-slate-700 rounded-xl p-3 shadow-2xl';
+
+            function pick(y, m) {
+                input.value = y ? `${y}-${String(m).padStart(2, '0')}` : '';
+                pop.remove();
+                renderAccountingTable();
+            }
+
+            function draw() {
+                let h = `<div class="flex items-center justify-between mb-2">
+                    <button type="button" data-nav="-1" class="px-2 py-0.5 text-slate-300 hover:text-emerald-400 text-sm">‹</button>
+                    <div class="text-xs font-bold text-slate-100">${vy} 年</div>
+                    <button type="button" data-nav="1" class="px-2 py-0.5 text-slate-300 hover:text-emerald-400 text-sm">›</button>
+                </div><div class="grid grid-cols-3 gap-1.5 text-center text-xs">`;
+                for (let m = 1; m <= 12; m++) {
+                    let cls = 'py-2 rounded-lg text-slate-200 hover:bg-slate-700 transition';
+                    if (vy === now.getFullYear() && m === now.getMonth() + 1) cls += ' border border-emerald-500/60';
+                    if (vy === selY && m === selM) cls = 'py-2 rounded-lg bg-emerald-500 text-white font-bold';
+                    h += `<button type="button" data-m="${m}" class="${cls}">${m} 月</button>`;
+                }
+                h += `</div><div class="flex justify-between mt-2 pt-2 border-t border-slate-800 text-[11px]">
+                    <button type="button" data-act="now" class="text-emerald-400 hover:text-emerald-300">本月</button>
+                    <button type="button" data-act="all" class="text-slate-400 hover:text-emerald-300">全部月份</button>
+                </div>`;
+                pop.innerHTML = h;
+            }
+
+            pop.addEventListener('click', e => {
+                e.stopPropagation();
+                const t = e.target.closest('button');
+                if (!t) return;
+                if (t.dataset.nav) { vy += parseInt(t.dataset.nav, 10); draw(); }
+                else if (t.dataset.m) pick(vy, +t.dataset.m);
+                else if (t.dataset.act === 'now') pick(now.getFullYear(), now.getMonth() + 1);
+                else if (t.dataset.act === 'all') pick(null);
+            });
+
+            draw();
+            wrap.appendChild(pop);
+        }
+
+        // 點擊日曆以外的地方就關閉
+        document.addEventListener('click', e => {
+            document.querySelectorAll('.cal-pop').forEach(p => {
+                if (!p.parentElement.contains(e.target)) p.remove();
+            });
+        });
+
+        // ================= CRUD 通用邏輯 =================
+        function openAddRecordModal(module) {
+            if (!guardWrite()) return;
+            editingRecordId = null;
+            document.getElementById('recordModalTitle').innerText = module === 'accounting' ? '新增記帳資料' : '新增記事項目';
+            renderRecordFormFields(module, {});
+            document.getElementById('recordModal').classList.remove('hidden');
+        }
+
+        function editRecord(module, id) {
+            if (!guardWrite()) return;
+            editingRecordId = id;
+            const record = dataStore[module].find(r => r.id === id);
+            if (!record) return;
+
+            document.getElementById('recordModalTitle').innerText = module === 'accounting' ? '編輯記帳資料' : '編輯記事項目';
+            renderRecordFormFields(module, record);
+            document.getElementById('recordModal').classList.remove('hidden');
+        }
+
+        function renderRecordFormFields(module, recordData) {
+            const container = document.getElementById('recordFormFields');
+            const fields = schema[module];
+            let html = '';
+
+            fields.forEach(f => {
+                let val = recordData[f.id] !== undefined ? recordData[f.id] : '';
+                if (f.type === 'date' && !val && !editingRecordId) {
+                    const n = new Date();
+                    val = `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+                }
+
+                html += `<div><label class="block text-xs font-semibold text-slate-300 mb-1">${esc(f.name)}</label>`;
+
+                if (f.type === 'select') {
+                    const opts = (f.options || ['收入', '支出']).slice();
+                    if (val && !opts.includes(val)) opts.push(val);
+                    html += `<select name="${f.id}" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500">`;
+                    if (f.id !== 'type') html += `<option value="">（未選擇）</option>`;
+                    opts.forEach(o => {
+                        html += `<option value="${esc(o)}" ${val === o ? 'selected' : ''}>${esc(o)}</option>`;
+                    });
+                    html += `</select>`;
+                } else if (f.type === 'checkbox') {
+                    html += `
+                        <div class="flex items-center space-x-2 pt-1">
+                            <input type="checkbox" name="${f.id}" ${val ? 'checked' : ''} class="w-4 h-4 rounded border-slate-700 bg-slate-950 text-emerald-500 focus:ring-0">
+                            <span class="text-xs text-slate-400">已完成</span>
+                        </div>`;
+                } else if (f.type === 'date') {
+                    html += `
+                        <div class="relative">
+                            <input type="text" name="${f.id}" value="${esc(val)}" placeholder="YYYY-MM-DD（可直接輸入，或點此選日期）" onclick="openDatePicker(this, true)" inputmode="numeric" maxlength="10" autocomplete="off" class="w-full bg-slate-950 border border-slate-700 rounded-xl pl-3 pr-10 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500">
+                            <button type="button" onclick="openDatePicker(this)" title="開啟日曆" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-emerald-400 transition"><i class="fa-solid fa-calendar-days text-sm"></i></button>
+                        </div>`;
+                } else {
+                    html += `<input type="${f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'}" name="${f.id}" value="${esc(val)}" ${f.type === 'number' ? 'step="any"' : ''} class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-emerald-500">`;
+                }
+
+                html += `</div>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function handleRecordSubmit(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const module = activeTab;
+            const dateValues = {};
+            for (const f of schema[module]) {
+                if (f.type === 'date') {
+                    const norm = normalizeDate(formData.get(f.id));
+                    if (norm === null) {
+                        showToast(`「${f.name}」格式不正確，請輸入如 2026-10-22`, 'circle-exclamation');
+                        return;
+                    }
+                    dateValues[f.id] = norm;
+                }
+            }
+            const record = editingRecordId ? dataStore[module].find(r => r.id === editingRecordId) : { id: Date.now().toString() };
+
+            schema[module].forEach(f => {
+                if (f.type === 'date') {
+                    record[f.id] = dateValues[f.id];
+                } else if (f.type === 'checkbox') {
+                    record[f.id] = formData.has(f.id);
+                } else if (f.type === 'number') {
+                    record[f.id] = parseFloat(formData.get(f.id)) || 0;
+                } else {
+                    record[f.id] = formData.get(f.id) || '';
+                }
+            });
+
+            if (!editingRecordId) {
+                dataStore[module].unshift(record);
+            }
+
+            saveToLocalStorage();
+            closeModal('recordModal');
+
+            if (module === 'accounting') renderAccountingTable();
+            else renderTasksTable();
+
+            showToast(editingRecordId ? '更新成功！' : '新增紀錄成功！');
+        }
+
+        async function deleteRecord(module, id) {
+            if (!guardWrite()) return;
+            if (await confirmDialog('確定要刪除這筆紀錄嗎？')) {
+                dataStore[module] = dataStore[module].filter(r => r.id !== id);
+                saveToLocalStorage();
+                if (module === 'accounting') renderAccountingTable();
+                else renderTasksTable();
+                showToast('已刪除紀錄');
+            }
+        }
+
+        // ================= 自訂欄位管理 logic =================
+        function openCustomFieldModal(module) {
+            if (!guardWrite()) return;
+            currentFieldTargetModule = module;
+            document.getElementById('fieldModalTitle').innerText = module === 'accounting' ? '管理【記帳】欄位' : '管理【記事】欄位';
+            renderFieldList();
+            document.getElementById('fieldModal').classList.remove('hidden');
+        }
+
+        const TYPE_LABELS = { text: '單行文字', number: '數字', date: '日期', select: '下拉選單', checkbox: '勾選框' };
+        // 這些欄位會影響統計計算，只能改名、不能刪除
+        const LOCKED_FIELDS = { accounting: ['type', 'amount'], tasks: ['completed'] };
+
+        function renderFieldList() {
+            const container = document.getElementById('fieldListContainer');
+            const fields = schema[currentFieldTargetModule];
+            const locked = LOCKED_FIELDS[currentFieldTargetModule] || [];
+            let html = '';
+
+            fields.forEach(f => {
+                const canDelete = !locked.includes(f.id);
+                const optionsEditable = f.type === 'select' && f.id !== 'type';
+                html += `
+                    <div class="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-xs space-y-2">
+                        <div class="flex items-center gap-2">
+                            <input type="text" value="${esc(f.name)}" onchange="renameField('${f.id}', this.value)" class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-100 focus:outline-none focus:border-emerald-500" title="直接修改欄位名稱">
+                            ${canDelete
+                                ? `<select onchange="changeFieldType('${f.id}', this.value)" class="bg-slate-900 border border-slate-700 rounded-lg px-1.5 py-1.5 text-[11px] text-slate-300 focus:outline-none focus:border-emerald-500" title="欄位類型">${Object.keys(TYPE_LABELS).map(k => `<option value="${k}" ${f.type === k ? 'selected' : ''}>${TYPE_LABELS[k]}</option>`).join('')}</select>`
+                                : `<span class="text-[10px] text-slate-500 whitespace-nowrap">${TYPE_LABELS[f.type] || f.type}</span>`}
+                            ${canDelete
+                                ? `<button onclick="deleteCustomField('${f.id}')" class="text-rose-400 hover:text-rose-300 text-xs px-2 py-1" title="刪除欄位"><i class="fa-solid fa-trash"></i></button>`
+                                : '<span class="text-[10px] text-slate-600 whitespace-nowrap">不可刪除</span>'}
+                        </div>
+                        ${optionsEditable ? `
+                        <div>
+                            <label class="block text-[10px] text-slate-500 mb-1">下拉選項（用逗號分隔）</label>
+                            <input type="text" value="${esc((f.options || []).join(', '))}" onchange="updateFieldOptions('${f.id}', this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-emerald-500">
+                        </div>` : ''}
+                    </div>`;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function refreshActiveTables() {
+            renderAccountingTable();
+            renderTasksTable();
+        }
+
+        function renameField(fieldId, value) {
+            const name = value.trim();
+            const field = schema[currentFieldTargetModule].find(f => f.id === fieldId);
+            if (!field) return;
+            if (!name) {
+                showToast('欄位名稱不能空白', 'circle-exclamation');
+                renderFieldList();
+                return;
+            }
+            field.name = name;
+            saveToLocalStorage();
+            refreshActiveTables();
+            showToast(`欄位名稱已改為【${name}】`);
+        }
+
+        function changeFieldType(fieldId, newType) {
+            const field = schema[currentFieldTargetModule].find(f => f.id === fieldId);
+            if (!field) return;
+            field.type = newType;
+            if (newType === 'select' && (!field.options || field.options.length === 0)) {
+                field.options = ['選項 A', '選項 B'];
+            }
+            saveToLocalStorage();
+            renderFieldList();
+            refreshActiveTables();
+            showToast(`欄位類型已改為【${TYPE_LABELS[newType]}】`);
+        }
+
+        function updateFieldOptions(fieldId, value) {
+            const field = schema[currentFieldTargetModule].find(f => f.id === fieldId);
+            if (!field) return;
+            const opts = value.split(/[,，、]/).map(o => o.trim()).filter(Boolean);
+            if (opts.length === 0) {
+                showToast('至少要有一個選項', 'circle-exclamation');
+                renderFieldList();
+                return;
+            }
+            field.options = opts;
+            saveToLocalStorage();
+            renderFieldList();
+            showToast('下拉選項已更新');
+        }
+
+        function addNewCustomField() {
+            const nameInput = document.getElementById('newFieldName');
+            const typeSelect = document.getElementById('newFieldType');
+            const name = nameInput.value.trim();
+            const type = typeSelect.value;
+
+            if (!name) {
+                showToast('請輸入欄位名稱', 'circle-exclamation');
+                return;
+            }
+
+            const fieldId = 'field_' + Date.now();
+            const newField = { id: fieldId, name, type, isSystem: false };
+
+            if (type === 'select') {
+                newField.options = ['選項 A', '選項 B'];
+            }
+
+            schema[currentFieldTargetModule].push(newField);
+            saveToLocalStorage();
+
+            nameInput.value = '';
+            renderFieldList();
+
+            if (currentFieldTargetModule === 'accounting') renderAccountingTable();
+            else renderTasksTable();
+
+            showToast(`已成功新增【${name}】欄位！`);
+        }
+
+        async function deleteCustomField(fieldId) {
+            if (await confirmDialog('刪除欄位將同時隱藏該欄位的舊資料，確定刪除嗎？')) {
+                schema[currentFieldTargetModule] = schema[currentFieldTargetModule].filter(f => f.id !== fieldId);
+                saveToLocalStorage();
+                renderFieldList();
+
+                if (currentFieldTargetModule === 'accounting') renderAccountingTable();
+                else renderTasksTable();
+
+                showToast('欄位已刪除');
+            }
+        }
+
+        // ================= UI 通用輔助 =================
+        function confirmDialog(message) {
+            return new Promise(resolve => {
+                const modal = document.getElementById('confirmModal');
+                const ok = document.getElementById('confirmOk');
+                const cancel = document.getElementById('confirmCancel');
+                document.getElementById('confirmMsg').innerText = message;
+                modal.classList.remove('hidden');
+                function done(result) {
+                    modal.classList.add('hidden');
+                    ok.onclick = null;
+                    cancel.onclick = null;
+                    resolve(result);
+                }
+                ok.onclick = () => done(true);
+                cancel.onclick = () => done(false);
+            });
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function showToast(msg, icon = 'circle-check') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').innerText = msg;
+            document.getElementById('toastIcon').className = `fa-solid fa-${icon} text-emerald-400 text-sm`;
+
+            toast.classList.remove('opacity-0', 'pointer-events-none');
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'pointer-events-none');
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
