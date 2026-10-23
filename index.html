@@ -68,11 +68,6 @@
             header h1 span, header p { display: none; }
         }
 
-
-        /* 記事清單：文字放大到 16px */
-        #tasksView, #tasksView table, #tasksView th, #tasksView td, #tasksView button,
-        #tasksView .text-xs, #tasksView .text-sm, #tasksView .text-\[11px\], #tasksView .text-\[10px\] { font-size: 16px !important; }
-
         /* 自訂內容區塊底色 */
         body.custom-panel .bg-slate-900\/80,
         body.custom-panel .bg-slate-900\/60 { background-color: var(--panel-bg) !important; }
@@ -440,8 +435,13 @@
         let dataStore = { accounting: [], tasks: [] };
 
         // ================= 儲存 / 讀取（本機 + 雲端同步） =================
+        // ★ 要在 GitHub Pages 等一般網站共用資料：把 Firebase 專案資訊填在這裡
+        const FIREBASE = {
+            projectId: 'my-project-ac7b3',
+            apiKey: 'AIzaSyATjWdzTIbCdphIYfy5s5021QBZIOfkFe0'
+        };
         const STORE_KEY = 'bondlink_ledger_v1';
-        const cloud = { ref: null, lastJson: '', timer: null, writing: false, pending: false, readOnly: false };
+        const cloud = { backend: null, lastJson: '', timer: null, writing: false, pending: false, readOnly: false };
 
         function currentJson() {
             return JSON.stringify({ schema, dataStore });
@@ -451,11 +451,11 @@
             const el = document.getElementById('syncBadge');
             if (!el) return;
             const map = {
-                cloud:  ['☁ 已同步（所有人共用同一份帳本）', 'border-emerald-500/40 text-emerald-300'],
+                cloud:    ['☁ 已同步（所有人共用同一份帳本）', 'border-emerald-500/40 text-emerald-300'],
                 readonly: ['唯讀：需「貢獻者」權限才能編輯', 'border-amber-500/40 text-amber-300'],
-                saving: ['同步中…', 'border-amber-500/40 text-amber-300'],
-                local:  ['僅存本機（登入 Claude 後開啟才能跨裝置同步）', 'border-slate-700 text-slate-400'],
-                error:  ['雲端同步失敗，已先存本機', 'border-rose-500/40 text-rose-300']
+                saving:   ['同步中…', 'border-amber-500/40 text-amber-300'],
+                local:    ['僅存本機（尚未設定雲端）', 'border-slate-700 text-slate-400'],
+                error:    ['雲端同步失敗，已先存本機（稍後會再試）', 'border-rose-500/40 text-rose-300']
             };
             const m = map[state] || map.local;
             el.textContent = m[0];
@@ -474,9 +474,43 @@
             }
         }
 
+        // ---------- 三方合併：避免兩個人同時編輯時互相蓋掉 ----------
+        function sameJson(a, b) { return JSON.stringify(a) === JSON.stringify(b); }
+
+        function mergeList(base, local, remote) {
+            const bm = new Map((base || []).map(r => [r.id, r]));
+            const lm = new Map((local || []).map(r => [r.id, r]));
+            const rm = new Map((remote || []).map(r => [r.id, r]));
+            const out = [], seen = new Set();
+            const consider = id => {
+                if (seen.has(id)) return;
+                seen.add(id);
+                const b = bm.get(id), l = lm.get(id), r = rm.get(id);
+                let pick = null;
+                if (l && r) pick = (b && sameJson(l, b)) ? r : l;   // 只有對方改過 → 採對方；我改過 → 採我的
+                else if (l) pick = b ? null : l;                      // 對方刪除了 / 我新增的
+                else if (r) pick = b ? null : r;                      // 我刪除了 / 對方新增的
+                if (pick) out.push(pick);
+            };
+            (remote || []).forEach(r => consider(r.id));
+            (local || []).forEach(r => consider(r.id));
+            return out;
+        }
+
+        function mergeStates(base, local, remote) {
+            const sameSchema = base && sameJson(local.schema, base.schema);
+            return {
+                schema: sameSchema ? remote.schema : local.schema,
+                dataStore: {
+                    accounting: mergeList(base && base.dataStore.accounting, local.dataStore.accounting, remote.dataStore.accounting),
+                    tasks: mergeList(base && base.dataStore.tasks, local.dataStore.tasks, remote.dataStore.tasks)
+                }
+            };
+        }
+
         function saveToLocalStorage() {
             try { localStorage.setItem(STORE_KEY, currentJson()); } catch (e) {}
-            if (cloud.ref && !cloud.readOnly) {
+            if (cloud.backend && !cloud.readOnly) {
                 clearTimeout(cloud.timer);
                 cloud.timer = setTimeout(pushToCloud, 500);
             }
@@ -490,18 +524,29 @@
         }
 
         async function pushToCloud() {
-            if (!cloud.ref) return;
+            if (!cloud.backend || cloud.readOnly) return;
             if (cloud.writing) { cloud.pending = true; return; }
-            const json = currentJson();
-            if (json === cloud.lastJson) { setSync('cloud'); return; }
             cloud.writing = true;
             setSync('saving');
             try {
-                await cloud.ref.set({ json, updatedAt: Date.now() });
+                const remote = await cloud.backend.get();
+                if (remote !== null && remote !== cloud.lastJson) {
+                    // 雲端有別人更新的內容：先合併再寫回
+                    const base = cloud.lastJson ? JSON.parse(cloud.lastJson) : null;
+                    const m = mergeStates(base, { schema, dataStore }, JSON.parse(remote));
+                    schema = m.schema;
+                    dataStore = m.dataStore;
+                    renderAll();
+                }
+                const json = currentJson();
+                if (json !== remote) await cloud.backend.set(json);
                 cloud.lastJson = json;
+                try { localStorage.setItem(STORE_KEY, json); } catch (e) {}
                 setSync('cloud');
             } catch (e) {
                 setSync('error');
+                clearTimeout(cloud.timer);
+                cloud.timer = setTimeout(pushToCloud, 8000);
             } finally {
                 cloud.writing = false;
                 if (cloud.pending) { cloud.pending = false; pushToCloud(); }
@@ -521,59 +566,114 @@
             if (!document.getElementById('fieldModal').classList.contains('hidden')) renderFieldList();
         }
 
-        // 連接雲端：資料存在你自己的 Claude 帳號下，同一帳號的手機與電腦共用
+        // ---------- 雲端後端 A：Claude 發布頁面（claude.ai 內） ----------
+        async function makeClaudeBackend() {
+            if (!window.claude || !claude.use) return null;
+            const [user, db] = await Promise.all([claude.use('user'), claude.use('db')]);
+            if (!user || !db) return null;
+            const id = await user.id();
+            if (!id) return null;
+            const ref = db.doc('ledger/main');
+            const canWrite = await user.can('data.write');
+            const pick = s => (s && s.exists && s.data() && s.data().json) ? s.data().json : null;
+            return {
+                readOnly: canWrite === false,
+                isOwner: user.isOwner(),
+                async get() { return pick(await ref.get()); },
+                async set(json) { await ref.set({ json, updatedAt: Date.now() }); },
+                subscribe(cb) { ref.onSnapshot(s => { const j = pick(s); if (j) cb(j); }, () => setSync('error')); },
+                async legacy() {
+                    try { return pick(await db.doc('data/users/' + id + '/ledger').get()); } catch (e) { return null; }
+                }
+            };
+        }
+
+        // ---------- 雲端後端 B：Firebase Firestore（GitHub Pages 等一般網站） ----------
+        function makeFirebaseBackend() {
+            const base = 'https://firestore.googleapis.com/v1/projects/' + encodeURIComponent(FIREBASE.projectId) +
+                '/databases/(default)/documents/ledger/main';
+            const key = 'key=' + encodeURIComponent(FIREBASE.apiKey);
+            const backend = {
+                readOnly: false,
+                async get() {
+                    const r = await fetch(base + '?' + key);
+                    if (r.status === 404) return null;
+                    if (!r.ok) throw new Error('get ' + r.status);
+                    const d = await r.json();
+                    return (d.fields && d.fields.json) ? d.fields.json.stringValue : null;
+                },
+                async set(json) {
+                    const r = await fetch(base + '?' + key + '&updateMask.fieldPaths=json&updateMask.fieldPaths=updatedAt', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ fields: { json: { stringValue: json }, updatedAt: { integerValue: String(Date.now()) } } })
+                    });
+                    if (!r.ok) throw new Error('set ' + r.status);
+                },
+                subscribe(cb) {
+                    const tick = async () => {
+                        if (document.hidden || cloud.writing) return;
+                        try { const j = await backend.get(); if (j) cb(j); } catch (e) {}
+                    };
+                    setInterval(tick, 5000);
+                    document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+                }
+            };
+            return backend;
+        }
+
+        // 遠端有更新：與本機未同步的修改合併後套用
+        function onRemoteChange(j) {
+            if (j === cloud.lastJson || j === currentJson()) return;
+            try {
+                const base = cloud.lastJson ? JSON.parse(cloud.lastJson) : null;
+                const m = mergeStates(base, { schema, dataStore }, JSON.parse(j));
+                schema = m.schema;
+                dataStore = m.dataStore;
+                cloud.lastJson = j;
+                try { localStorage.setItem(STORE_KEY, currentJson()); } catch (e) {}
+                renderAll();
+                showToast('已從其他裝置／其他人更新資料');
+                if (currentJson() !== j && !cloud.readOnly) {
+                    clearTimeout(cloud.timer);
+                    cloud.timer = setTimeout(pushToCloud, 500);
+                }
+            } catch (e) {}
+        }
+
         async function initCloud() {
             try {
-                if (!window.claude || !claude.use) { setSync('local'); return; }
-                const [user, db] = await Promise.all([claude.use('user'), claude.use('db')]);
-                if (!user || !db) { setSync('local'); return; }
-                const id = await user.id();
-                if (!id) { setSync('local'); return; }
-                const ref = db.doc('ledger/main'); // 所有人共用同一份帳本
-                const canWrite = await user.can('data.write');
-                const isOwner = user.isOwner();
-                if (canWrite === false) cloud.readOnly = true;
+                let be = null;
+                if (window.claude && claude.use) be = await makeClaudeBackend();
+                if (!be && FIREBASE.projectId && FIREBASE.apiKey) be = makeFirebaseBackend();
+                if (!be) { setSync('local'); return; }
 
-                let snap = await ref.get();
+                cloud.backend = be;
+                cloud.readOnly = !!be.readOnly;
+
+                let remote = await be.get();
                 let migrated = false;
-                if (!snap.exists && isOwner) {
-                    // 第一次啟用共用：把先前存在個人空間的資料搬過來
-                    try {
-                        const old = await db.doc('data/users/' + id + '/ledger').get();
-                        if (old.exists && old.data() && old.data().json) { snap = old; migrated = true; }
-                    } catch (e) {}
+                if (remote === null && be.legacy && be.isOwner) {
+                    const old = await be.legacy();   // 把先前存在個人空間的資料搬進共用帳本
+                    if (old) { remote = old; migrated = true; }
                 }
-                if (snap.exists && snap.data() && snap.data().json) {
-                    const json = snap.data().json;
-                    applyState(JSON.parse(json));
-                    cloud.lastJson = migrated ? '' : json;
+                if (remote !== null) {
+                    applyState(JSON.parse(remote));
+                    cloud.lastJson = migrated ? '' : remote;
                     try { localStorage.setItem(STORE_KEY, currentJson()); } catch (e) {}
                     renderAll();
                 }
-                cloud.ref = ref;
+
                 if (cloud.readOnly) {
                     setSync('readonly');
-                } else if (isOwner || snap.exists) {
-                    setSync('saving');
-                    await pushToCloud(); // 共用帳本還不存在時建立；已相同則不重複寫入
+                } else if (remote !== null || be.isOwner !== false) {
+                    await pushToCloud();   // 雲端還沒有資料時，把本機資料上傳
                 } else {
                     setSync('cloud');
                 }
-
-                ref.onSnapshot(s => {
-                    if (!s.exists || !s.data() || !s.data().json) return;
-                    const j = s.data().json;
-                    if (j === cloud.lastJson || j === currentJson()) return;
-                    try {
-                        applyState(JSON.parse(j));
-                        cloud.lastJson = j;
-                        try { localStorage.setItem(STORE_KEY, currentJson()); } catch (e) {}
-                        renderAll();
-                        showToast('已從其他裝置更新資料');
-                    } catch (e) {}
-                }, () => setSync('error'));
+                be.subscribe(onRemoteChange);
             } catch (e) {
-                setSync('local');
+                setSync('error');
             }
         }
 
@@ -1134,7 +1234,7 @@
                     dateValues[f.id] = norm;
                 }
             }
-            const record = editingRecordId ? dataStore[module].find(r => r.id === editingRecordId) : { id: Date.now().toString() };
+            const record = editingRecordId ? dataStore[module].find(r => r.id === editingRecordId) : { id: Date.now().toString() + Math.random().toString(36).slice(2, 6) };
 
             schema[module].forEach(f => {
                 if (f.type === 'date') {
