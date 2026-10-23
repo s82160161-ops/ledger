@@ -83,6 +83,8 @@
         body.panel-light #appMainContainer tbody > tr { border-color: #e2e8f0 !important; }
         body.panel-light #appMainContainer tbody tr:hover { background-color: rgba(15, 23, 42, .05) !important; }
         body.panel-light #appMainContainer .divide-y > :not([hidden]) ~ :not([hidden]) { border-color: #e2e8f0 !important; }
+        .fa-download{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3'/%3E%3C/svg%3E");}
+        .fa-upload{--ic:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12'/%3E%3C/svg%3E");}
         header.hdr-light h1 { color: #0f172a !important; }
         header.hdr-light p { color: #475569 !important; }
     </style>
@@ -104,6 +106,11 @@
             </div>
         </div>
 
+        <div class="flex items-center gap-1.5">
+            <button type="button" onclick="exportBackup()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs rounded-lg font-medium transition" title="下載整份帳本備份檔"><i class="fa-solid fa-download text-emerald-400"></i><span>匯出備份</span></button>
+            <button type="button" onclick="document.getElementById('importFile').click()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs rounded-lg font-medium transition" title="從備份檔還原資料"><i class="fa-solid fa-upload text-cyan-400"></i><span>匯入備份</span></button>
+            <input type="file" id="importFile" accept=".json,application/json" class="hidden" onchange="handleImportFile(this)">
+        </div>
         <span id="syncBadge" class="text-[10px] px-2 py-1 rounded-full border border-slate-700 text-slate-400 whitespace-nowrap">讀取中…</span>
 
         <!-- 頁籤切換按鈕 -->
@@ -388,6 +395,23 @@
         </div>
     </div>
 
+    <!-- 匯入備份視窗 -->
+    <div id="importModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+            <div class="flex items-center gap-2 text-sm font-bold text-slate-100"><i class="fa-solid fa-upload text-cyan-400"></i>匯入備份</div>
+            <div id="importSummary" class="text-xs text-slate-300 leading-relaxed bg-slate-950 border border-slate-800 rounded-xl p-3"></div>
+            <div class="text-xs text-slate-400 leading-relaxed space-y-1.5">
+                <p><b class="text-emerald-300">合併匯入</b>：保留目前所有資料，只把備份裡「目前沒有」的記錄補進來（適合找回被刪的資料）。</p>
+                <p><b class="text-rose-300">取代全部</b>：用備份完全覆蓋目前的資料與欄位設定（適合整份還原）。</p>
+            </div>
+            <div class="flex justify-end gap-2 pt-1">
+                <button type="button" onclick="closeImportModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl font-medium transition">取消</button>
+                <button type="button" onclick="importReplace()" class="px-4 py-2 bg-rose-500/90 hover:bg-rose-500 text-white text-xs rounded-xl font-bold transition">取代全部</button>
+                <button type="button" onclick="importMerge()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-xs rounded-xl font-bold transition">合併匯入</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 確認視窗（取代瀏覽器 confirm） -->
     <div id="confirmModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
@@ -551,6 +575,90 @@
                 cloud.writing = false;
                 if (cloud.pending) { cloud.pending = false; pushToCloud(); }
             }
+        }
+
+        // ================= 匯出 / 匯入備份 =================
+        let pendingImport = null;
+
+        function exportBackup() {
+            const data = { app: 'bondlink-ledger', version: 1, exportedAt: new Date().toISOString(), schema, dataStore };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const d = new Date();
+            const pad = n => String(n).padStart(2, '0');
+            const name = `記帳備份-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1500);
+            showToast(`已匯出備份（記帳 ${dataStore.accounting.length} 筆、記事 ${dataStore.tasks.length} 筆）`);
+        }
+
+        function handleImportFile(input) {
+            const file = input.files[0];
+            input.value = '';
+            if (!file) return;
+            if (!guardWrite()) return;
+            const reader = new FileReader();
+            reader.onload = e => {
+                try {
+                    const o = JSON.parse(e.target.result);
+                    if (!o || !o.schema || !Array.isArray(o.schema.accounting) || !Array.isArray(o.schema.tasks) ||
+                        !o.dataStore || !Array.isArray(o.dataStore.accounting) || !Array.isArray(o.dataStore.tasks)) {
+                        throw new Error('format');
+                    }
+                    pendingImport = o;
+                    const when = o.exportedAt ? new Date(o.exportedAt).toLocaleString('zh-TW') : '（未記錄）';
+                    document.getElementById('importSummary').innerHTML =
+                        `備份時間：${esc(when)}<br>備份內容：記帳 <b>${o.dataStore.accounting.length}</b> 筆、記事 <b>${o.dataStore.tasks.length}</b> 筆<br>` +
+                        `目前資料：記帳 <b>${dataStore.accounting.length}</b> 筆、記事 <b>${dataStore.tasks.length}</b> 筆`;
+                    document.getElementById('importModal').classList.remove('hidden');
+                } catch (err) {
+                    showToast('檔案格式不正確，無法匯入', 'circle-exclamation');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').classList.add('hidden');
+            pendingImport = null;
+        }
+
+        function importMerge() {
+            const o = pendingImport;
+            if (!o) return;
+            let added = 0;
+            ['accounting', 'tasks'].forEach(mod => {
+                const have = new Set(dataStore[mod].map(r => r.id));
+                o.dataStore[mod].forEach(rec => {
+                    if (rec && rec.id && !have.has(rec.id)) { dataStore[mod].push(rec); added++; }
+                });
+                // 備份裡有、目前沒有的欄位也補回來
+                const haveF = new Set(schema[mod].map(f => f.id));
+                o.schema[mod].forEach(f => { if (f && f.id && !haveF.has(f.id)) schema[mod].push(f); });
+            });
+            saveToLocalStorage();
+            renderAll();
+            closeImportModal();
+            showToast(`合併完成，補回 ${added} 筆記錄`);
+        }
+
+        async function importReplace() {
+            const o = pendingImport;
+            if (!o) return;
+            const ok = await confirmDialog('確定要用備份取代目前全部資料與欄位設定嗎？目前的內容會被覆蓋，無法復原。', '確定取代');
+            if (!ok) return;
+            schema = o.schema;
+            dataStore = o.dataStore;
+            applyState({ schema, dataStore });
+            saveToLocalStorage();
+            renderAll();
+            closeImportModal();
+            showToast('已用備份取代全部資料');
         }
 
         // 唯讀（沒有編輯權限）時，擋住所有修改動作
@@ -1408,12 +1516,13 @@
         }
 
         // ================= UI 通用輔助 =================
-        function confirmDialog(message) {
+        function confirmDialog(message, okLabel) {
             return new Promise(resolve => {
                 const modal = document.getElementById('confirmModal');
                 const ok = document.getElementById('confirmOk');
                 const cancel = document.getElementById('confirmCancel');
                 document.getElementById('confirmMsg').innerText = message;
+                ok.textContent = okLabel || '確定刪除';
                 modal.classList.remove('hidden');
                 function done(result) {
                     modal.classList.add('hidden');
