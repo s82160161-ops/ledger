@@ -17,6 +17,8 @@
     </script>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+    <!-- Excel 匯出入（SheetJS） -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
     
@@ -107,9 +109,9 @@
         </div>
 
         <div class="flex items-center gap-1.5">
-            <button type="button" onclick="exportBackup()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs rounded-lg font-medium transition" title="下載整份帳本備份檔"><i class="fa-solid fa-download text-emerald-400"></i><span>匯出備份</span></button>
-            <button type="button" onclick="document.getElementById('importFile').click()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs rounded-lg font-medium transition" title="從備份檔還原資料"><i class="fa-solid fa-upload text-cyan-400"></i><span>匯入備份</span></button>
-            <input type="file" id="importFile" accept=".json,application/json" class="hidden" onchange="handleImportFile(this)">
+            <button type="button" onclick="exportBackup()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs rounded-lg font-medium transition" title="下載 Excel 檔（記帳、記事各一張工作表）"><i class="fa-solid fa-download text-emerald-400"></i><span>匯出 Excel</span></button>
+            <button type="button" onclick="document.getElementById('importFile').click()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs rounded-lg font-medium transition" title="從 Excel 檔匯入（也可匯入舊的 .json 備份）"><i class="fa-solid fa-upload text-cyan-400"></i><span>匯入 Excel</span></button>
+            <input type="file" id="importFile" accept=".xlsx,.xls,.csv,.json,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="hidden" onchange="handleImportFile(this)">
         </div>
         <span id="syncBadge" class="text-[10px] px-2 py-1 rounded-full border border-slate-700 text-slate-400 whitespace-nowrap">讀取中…</span>
 
@@ -398,11 +400,12 @@
     <!-- 匯入備份視窗 -->
     <div id="importModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[60] flex items-center justify-center hidden p-4">
         <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
-            <div class="flex items-center gap-2 text-sm font-bold text-slate-100"><i class="fa-solid fa-upload text-cyan-400"></i>匯入備份</div>
+            <div class="flex items-center gap-2 text-sm font-bold text-slate-100"><i class="fa-solid fa-upload text-cyan-400"></i>匯入資料</div>
             <div id="importSummary" class="text-xs text-slate-300 leading-relaxed bg-slate-950 border border-slate-800 rounded-xl p-3"></div>
             <div class="text-xs text-slate-400 leading-relaxed space-y-1.5">
                 <p><b class="text-emerald-300">合併匯入</b>：保留目前所有資料，只把備份裡「目前沒有」的記錄補進來（適合找回被刪的資料）。</p>
-                <p><b class="text-rose-300">取代全部</b>：用備份完全覆蓋目前的資料與欄位設定（適合整份還原）。</p>
+                <p><b class="text-rose-300">取代全部</b>：用檔案完全覆蓋目前的資料與欄位設定（適合整份還原，或在 Excel 改完後套用修改）。</p>
+                <p class="text-slate-500">Excel 裡新增的列，「編號」欄留空即可，會被當成新記錄。</p>
             </div>
             <div class="flex justify-end gap-2 pt-1">
                 <button type="button" onclick="closeImportModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded-xl font-medium transition">取消</button>
@@ -580,12 +583,113 @@
         // ================= 匯出 / 匯入備份 =================
         let pendingImport = null;
 
+        // ---------- Excel 轉換 ----------
+        const ID_HEADER = '編號(請勿修改)';
+        const SCHEMA_SHEET = '欄位設定(勿刪)';
+        const MOD_SHEET = { accounting: '記帳', tasks: '記事' };
+
+        function uniqueNames(fields) {
+            const seen = {};
+            return fields.map(f => {
+                let n = String(f.name || f.id), k = n, c = 2;
+                while (seen[k]) k = n + '(' + (c++) + ')';
+                seen[k] = true;
+                return k;
+            });
+        }
+
+        function buildWorkbook() {
+            const wb = XLSX.utils.book_new();
+            ['accounting', 'tasks'].forEach(mod => {
+                const fields = schema[mod];
+                const rows = [uniqueNames(fields).concat([ID_HEADER])];
+                dataStore[mod].forEach(rec => {
+                    rows.push(fields.map(f => {
+                        const v = rec[f.id];
+                        if (f.type === 'checkbox') return v ? '是' : '否';
+                        if (f.type === 'number') return (v === '' || v == null) ? '' : Number(v);
+                        return v == null ? '' : String(v);
+                    }).concat([rec.id || '']));
+                });
+                const ws = XLSX.utils.aoa_to_sheet(rows);
+                ws['!cols'] = rows[0].map((h, ci) => ({ wch: ci === rows[0].length - 1 ? 16 : Math.max(10, Math.min(36, String(h).length * 2 + 4)) }));
+                XLSX.utils.book_append_sheet(wb, ws, MOD_SHEET[mod]);
+            });
+            const srows = [['模組', '欄位代碼', '欄位名稱', '類型', '下拉選項（逗號分隔）', '系統欄位']];
+            ['accounting', 'tasks'].forEach(mod => {
+                schema[mod].forEach(f => srows.push([mod, f.id, f.name, f.type, (f.options || []).join(','), f.isSystem ? '是' : '否']));
+            });
+            const sws = XLSX.utils.aoa_to_sheet(srows);
+            sws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 22 }, { wch: 10 }, { wch: 30 }, { wch: 10 }];
+            XLSX.utils.book_append_sheet(wb, sws, SCHEMA_SHEET);
+            return wb;
+        }
+
+        function cellToDate(v) {
+            if (v instanceof Date) {
+                const d = new Date(v.getTime() + 12 * 3600e3);
+                return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
+            }
+            const n = normalizeDate(String(v == null ? '' : v));
+            return n || '';
+        }
+
+        function workbookToBackup(wb) {
+            const hasAny = wb.Sheets[MOD_SHEET.accounting] || wb.Sheets[MOD_SHEET.tasks];
+            if (!hasAny) throw new Error('format');
+            const sch = { accounting: schema.accounting.map(f => Object.assign({}, f)), tasks: schema.tasks.map(f => Object.assign({}, f)) };
+            const sws = wb.Sheets[SCHEMA_SHEET];
+            if (sws) {
+                const got = { accounting: [], tasks: [] };
+                XLSX.utils.sheet_to_json(sws, { header: 1, defval: '' }).slice(1).forEach(r => {
+                    const mod = String(r[0]).trim();
+                    if (!got[mod] || !String(r[1]).trim() || !String(r[2]).trim()) return;
+                    const type = ['text', 'number', 'date', 'select', 'checkbox'].includes(String(r[3]).trim()) ? String(r[3]).trim() : 'text';
+                    const f = { id: String(r[1]).trim(), name: String(r[2]).trim(), type, isSystem: String(r[5]).trim() === '是' };
+                    if (type === 'select') f.options = String(r[4]).split(/[,，、]/).map(s => s.trim()).filter(Boolean);
+                    got[mod].push(f);
+                });
+                ['accounting', 'tasks'].forEach(m => { if (got[m].length) sch[m] = got[m]; });
+            }
+            const out = { accounting: [], tasks: [] };
+            ['accounting', 'tasks'].forEach(mod => {
+                const ws = wb.Sheets[MOD_SHEET[mod]];
+                if (!ws) return;
+                const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: true });
+                if (!rows.length) return;
+                const heads = rows[0].map(h => String(h).trim());
+                const idIdx = heads.indexOf(ID_HEADER);
+                const names = uniqueNames(sch[mod]);
+                const colOf = sch[mod].map((f, k) => heads.indexOf(names[k]));
+                rows.slice(1).forEach((r, ri) => {
+                    const rec = {};
+                    let any = false;
+                    sch[mod].forEach((f, k) => {
+                        const ci = colOf[k];
+                        let v = ci >= 0 ? r[ci] : '';
+                        if (v !== '' && v != null) any = true;
+                        if (f.type === 'checkbox') rec[f.id] = ['是', 'true', '1', 'v', 'y', 'yes', '完成', '已完成', '✓', '✔'].includes(String(v).trim().toLowerCase());
+                        else if (f.type === 'number') rec[f.id] = parseFloat(String(v).replace(/,/g, '')) || 0;
+                        else if (f.type === 'date') rec[f.id] = cellToDate(v);
+                        else rec[f.id] = v == null ? '' : String(v);
+                    });
+                    if (!any) return;
+                    const given = idIdx >= 0 ? String(r[idIdx]).trim() : '';
+                    rec.id = given || ('x' + Date.now() + '_' + ri);
+                    out[mod].push(rec);
+                });
+            });
+            return { app: 'bondlink-ledger', version: 1, exportedAt: new Date().toISOString(), schema: sch, dataStore: out };
+        }
+
         function exportBackup() {
-            const data = { app: 'bondlink-ledger', version: 1, exportedAt: new Date().toISOString(), schema, dataStore };
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            if (!window.XLSX) { showToast('Excel 元件載入失敗，請檢查網路後重新整理', 'circle-exclamation'); return; }
+            const wb = buildWorkbook();
+            const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const d = new Date();
             const pad = n => String(n).padStart(2, '0');
-            const name = `記帳備份-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+            const name = `記帳備份-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.xlsx`;
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -593,8 +697,17 @@
             document.body.appendChild(a);
             a.click();
             a.remove();
-            setTimeout(() => URL.revokeObjectURL(url), 1500);
-            showToast(`已匯出備份（記帳 ${dataStore.accounting.length} 筆、記事 ${dataStore.tasks.length} 筆）`);
+            setTimeout(() => URL.revokeObjectURL(url), 4000);
+            showToast(`已匯出 Excel（記帳 ${dataStore.accounting.length} 筆、記事 ${dataStore.tasks.length} 筆）`);
+        }
+
+        function showImportSummary(o) {
+            pendingImport = o;
+            const when = o.exportedAt ? new Date(o.exportedAt).toLocaleString('zh-TW') : '（未記錄）';
+            document.getElementById('importSummary').innerHTML =
+                `檔案內容：記帳 <b>${o.dataStore.accounting.length}</b> 筆、記事 <b>${o.dataStore.tasks.length}</b> 筆<br>` +
+                `目前資料：記帳 <b>${dataStore.accounting.length}</b> 筆、記事 <b>${dataStore.tasks.length}</b> 筆`;
+            document.getElementById('importModal').classList.remove('hidden');
         }
 
         function handleImportFile(input) {
@@ -602,25 +715,28 @@
             input.value = '';
             if (!file) return;
             if (!guardWrite()) return;
+            const isJson = /\.json$/i.test(file.name) || file.type === 'application/json';
             const reader = new FileReader();
             reader.onload = e => {
                 try {
-                    const o = JSON.parse(e.target.result);
-                    if (!o || !o.schema || !Array.isArray(o.schema.accounting) || !Array.isArray(o.schema.tasks) ||
-                        !o.dataStore || !Array.isArray(o.dataStore.accounting) || !Array.isArray(o.dataStore.tasks)) {
-                        throw new Error('format');
+                    let o;
+                    if (isJson) {
+                        o = JSON.parse(e.target.result);
+                        if (!o || !o.schema || !Array.isArray(o.schema.accounting) || !Array.isArray(o.schema.tasks) ||
+                            !o.dataStore || !Array.isArray(o.dataStore.accounting) || !Array.isArray(o.dataStore.tasks)) {
+                            throw new Error('format');
+                        }
+                    } else {
+                        if (!window.XLSX) { showToast('Excel 元件載入失敗，請檢查網路後重新整理', 'circle-exclamation'); return; }
+                        const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+                        o = workbookToBackup(wb);
                     }
-                    pendingImport = o;
-                    const when = o.exportedAt ? new Date(o.exportedAt).toLocaleString('zh-TW') : '（未記錄）';
-                    document.getElementById('importSummary').innerHTML =
-                        `備份時間：${esc(when)}<br>備份內容：記帳 <b>${o.dataStore.accounting.length}</b> 筆、記事 <b>${o.dataStore.tasks.length}</b> 筆<br>` +
-                        `目前資料：記帳 <b>${dataStore.accounting.length}</b> 筆、記事 <b>${dataStore.tasks.length}</b> 筆`;
-                    document.getElementById('importModal').classList.remove('hidden');
+                    showImportSummary(o);
                 } catch (err) {
-                    showToast('檔案格式不正確，無法匯入', 'circle-exclamation');
+                    showToast('檔案格式不正確，無法匯入（請使用本工具匯出的 Excel）', 'circle-exclamation');
                 }
             };
-            reader.readAsText(file);
+            if (isJson) reader.readAsText(file); else reader.readAsArrayBuffer(file);
         }
 
         function closeImportModal() {
